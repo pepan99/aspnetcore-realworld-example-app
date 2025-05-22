@@ -12,9 +12,9 @@ public class ArticlesController(IMediator mediator) : Controller
 {
     [HttpGet]
     public Task<ArticlesEnvelope> Get(
-        [FromQuery] string tag,
-        [FromQuery] string author,
-        [FromQuery] string favorited,
+        [FromQuery] string? tag,
+        [FromQuery] string? author,
+        [FromQuery] string? favorited,
         [FromQuery] int? limit,
         [FromQuery] int? offset,
         CancellationToken cancellationToken
@@ -22,9 +22,9 @@ public class ArticlesController(IMediator mediator) : Controller
 
     [HttpGet("feed")]
     public Task<ArticlesEnvelope> GetFeed(
-        [FromQuery] string tag,
-        [FromQuery] string author,
-        [FromQuery] string favorited,
+        [FromQuery] string? tag,
+        [FromQuery] string? author,
+        [FromQuery] string? favorited,
         [FromQuery] int? limit,
         [FromQuery] int? offset,
         CancellationToken cancellationToken
