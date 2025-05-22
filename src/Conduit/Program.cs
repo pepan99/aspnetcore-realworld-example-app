@@ -5,43 +5,30 @@ using Conduit.Infrastructure;
 using Conduit.Infrastructure.Errors;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 
-// read database configuration (database provider + database connection) from environment variables
-//Environment.GetEnvironmentVariable(DEFAULT_DATABASE_PROVIDER)
-//Environment.GetEnvironmentVariable(DEFAULT_DATABASE_CONNECTION_STRING)
-var defaultDatabaseConnectionSrting = "Filename=realworld.db";
-var defaultDatabaseProvider = "sqlite";
 
 var builder = WebApplication.CreateBuilder(args);
 
-// take the connection string from the environment variable or use hard-coded database name
-var connectionString = defaultDatabaseConnectionSrting;
+var connectionString = String.Empty;
 
-// take the database provider from the environment variable or use hard-coded database provider
-var databaseProvider = defaultDatabaseProvider;
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.Development.json");
+    connectionString = builder.Configuration.GetConnectionString("DB_CONNECTION_STRING");
+}
+else
+{
+    connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+}
 
 builder.Services.AddDbContext<ConduitContext>(options =>
 {
-    if (databaseProvider.ToLowerInvariant().Trim().Equals("sqlite", StringComparison.Ordinal))
-    {
-        options.UseSqlite(connectionString);
-    }
-    else if (
-        databaseProvider.ToLowerInvariant().Trim().Equals("sqlserver", StringComparison.Ordinal)
-    )
-    {
-        // only works in windows container
         options.UseSqlServer(connectionString);
-    }
-    else
-    {
-        throw new InvalidOperationException(
-            "Database provider unknown. Please check configuration"
-        );
-    }
 });
 
 builder.Services.AddLocalization(x => x.ResourcesPath = "Resources");
