@@ -1,8 +1,19 @@
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
 WORKDIR /app
 
-EXPOSE 5000
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["build/build.csproj", "build/"]
+RUN dotnet restore "build/build.csproj"
+COPY . .
+WORKDIR "/src/build"
+RUN dotnet build "build.csproj" -c Release -o /app/build
 
-COPY ./publish .
+FROM build AS publish
+RUN dotnet publish "build.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+EXPOSE 5000
 
 ENTRYPOINT ["dotnet", "Conduit.dll"]
