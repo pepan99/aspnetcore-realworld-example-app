@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using Conduit;
 using Conduit.Infrastructure;
 using Conduit.Infrastructure.Errors;
+using Conduit.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 
 
@@ -28,12 +28,16 @@ else
 
 builder.Services.AddDbContext<ConduitContext>(options =>
 {
-        options.UseSqlServer(connectionString);
+    options.UseSqlServer(connectionString, optionsBuilder =>
+    {
+        optionsBuilder.EnableRetryOnFailure(maxRetryCount: 15,
+            maxRetryDelay: TimeSpan.FromSeconds(500),
+            errorNumbersToAdd: null);
+    });
 });
 
 builder.Services.AddLocalization(x => x.ResourcesPath = "Resources");
 
-// Inject an implementation of ISwaggerProvider with defaulted settings applied
 builder.Services.AddSwaggerGen(x =>
 {
     x.AddSecurityDefinition(
@@ -91,12 +95,12 @@ builder
     );
 
 builder.Services.AddConduit();
-
 builder.Services.AddJwt();
+
+builder.Services.AddHostedService<DatabaseInitializationService>();
 
 var app = builder.Build();
 
-app.Services.GetRequiredService<ILoggerFactory>().AddSerilogLogging();
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
@@ -105,17 +109,7 @@ app.UseCors(x => x.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 app.UseAuthentication();
 app.UseMvc();
 
-// Enable middleware to serve generated Swagger as a JSON endpoint
 app.UseSwagger(c => c.RouteTemplate = "swagger/{documentName}/swagger.json");
-
-// Enable middleware to serve swagger-ui assets(HTML, JS, CSS etc.)
 app.UseSwaggerUI(x => x.SwaggerEndpoint("/swagger/v1/swagger.json", "RealWorld API V1"));
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope
-        .ServiceProvider.GetRequiredService<ConduitContext>()
-        .Database.EnsureCreated();
-    // use context
-}
 app.Run();
