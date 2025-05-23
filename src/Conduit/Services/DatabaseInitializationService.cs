@@ -8,9 +8,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Conduit.Services;
 
-public class DatabaseInitializationService(IServiceProvider serviceProvider,
-                                         ILogger<DatabaseInitializationService> logger,
-                                         IHostEnvironment environment) : IHostedService
+public class DatabaseInitializationService(
+    IServiceProvider serviceProvider,
+    ILogger<DatabaseInitializationService> logger,
+    IHostEnvironment environment
+) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -26,13 +28,18 @@ public class DatabaseInitializationService(IServiceProvider serviceProvider,
 
         for (var i = 0; i < maxRetries; i++)
         {
-            if (cancellationToken.IsCancellationRequested) {return;}
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
 
             try
             {
                 using var scope = serviceProvider.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ConduitContext>();
-                var ensureCreatedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var ensureCreatedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken
+                );
                 ensureCreatedCts.CancelAfter(TimeSpan.FromMinutes(3));
 
                 await dbContext.Database.EnsureCreatedAsync(ensureCreatedCts.Token);
@@ -57,13 +64,17 @@ public class DatabaseInitializationService(IServiceProvider serviceProvider,
                     }
                     catch (OperationCanceledException)
                     {
-                         logger.LogWarning("Database initialization retry delay cancelled by application shutdown.");
-                         return;
+                        logger.LogWarning(
+                            "Database initialization retry delay cancelled by application shutdown."
+                        );
+                        return;
                     }
                 }
                 else
                 {
-                    logger.LogCritical("Max retries reached. Could not ensure database. The application might not function correctly.");
+                    logger.LogCritical(
+                        "Max retries reached. Could not ensure database. The application might not function correctly."
+                    );
                     return;
                 }
             }

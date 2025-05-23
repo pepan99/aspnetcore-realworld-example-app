@@ -2,14 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Conduit.Infrastructure;
 
-/// <summary>
-/// Adds transaction to the processing pipeline
-/// </summary>
-/// <typeparam name="TRequest"></typeparam>
-/// <typeparam name="TResponse"></typeparam>
 public class DBContextTransactionPipelineBehavior<TRequest, TResponse>(ConduitContext context)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -20,22 +17,48 @@ public class DBContextTransactionPipelineBehavior<TRequest, TResponse>(ConduitCo
         CancellationToken cancellationToken
     )
     {
-        TResponse? result;
-
-        try
+        if (
+            context.Database.CurrentTransaction == null
+            && context.Database.CreateExecutionStrategy() is IExecutionStrategy strategy
+        )
         {
-            context.BeginTransaction();
-
-            result = await next();
-
-            context.CommitTransaction();
+            TResponse? result = default;
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await context.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+                try
+                {
+                    result = await next();
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                catch (Exception)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            });
+            return result!;
         }
-        catch (Exception)
+        else
         {
-            context.RollbackTransaction();
-            throw;
+            await using var transaction = await context.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.ReadCommitted,
+                cancellationToken
+            );
+            try
+            {
+                var result = await next();
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
-
-        return result;
     }
 }

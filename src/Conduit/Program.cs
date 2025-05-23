@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = String.Empty;
@@ -28,12 +27,17 @@ else
 
 builder.Services.AddDbContext<ConduitContext>(options =>
 {
-    options.UseSqlServer(connectionString, optionsBuilder =>
-    {
-        optionsBuilder.EnableRetryOnFailure(maxRetryCount: 15,
-            maxRetryDelay: TimeSpan.FromSeconds(500),
-            errorNumbersToAdd: null);
-    });
+    options.UseSqlServer(
+        connectionString,
+        optionsBuilder =>
+        {
+            optionsBuilder.EnableRetryOnFailure(
+                maxRetryCount: 15,
+                maxRetryDelay: TimeSpan.FromSeconds(500),
+                errorNumbersToAdd: null
+            );
+        }
+    );
 });
 
 builder.Services.AddLocalization(x => x.ResourcesPath = "Resources");
@@ -100,7 +104,6 @@ builder.Services.AddJwt();
 builder.Services.AddHostedService<DatabaseInitializationService>();
 
 var app = builder.Build();
-
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 

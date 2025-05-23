@@ -1,37 +1,62 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using Conduit.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+// Keep for now, though File.Delete might be removed for InMemory
+// Assuming ConduitContext is here
+
+// Required for RemoveAll
 
 namespace Conduit.IntegrationTests;
 
 public class SliceFixture : IDisposable
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly string _dbName = Guid.NewGuid() + ".db"; // Unique name for InMemory DB
     private readonly ServiceProvider _provider;
-    private readonly string _dbName = Guid.NewGuid() + ".db";
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public SliceFixture()
     {
         var services = new ServiceCollection();
         services.AddConduit();
 
-        var builder = new DbContextOptionsBuilder();
-        builder.UseInMemoryDatabase(_dbName);
-        services.AddSingleton(new ConduitContext(builder.Options));
+        services.RemoveAll<DbContextOptions<ConduitContext>>();
+        services.RemoveAll<ConduitContext>();
+
+        var dbContextOptions = new DbContextOptionsBuilder<ConduitContext>()
+            .UseInMemoryDatabase(_dbName)
+            .Options;
+
+        services.AddSingleton(dbContextOptions);
+
+        services.AddScoped<ConduitContext>();
+
 
         _provider = services.BuildServiceProvider();
 
-        GetDbContext().Database.EnsureCreated();
+        using (var scope = _provider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<ConduitContext>();
+            context.Database.EnsureCreated();
+        }
+
         _scopeFactory = _provider.GetRequiredService<IServiceScopeFactory>();
     }
 
-    public ConduitContext GetDbContext() => _provider.GetRequiredService<ConduitContext>();
+    public void Dispose()
+    {
+    }
 
-    public void Dispose() => File.Delete(_dbName);
+    public ConduitContext GetDbContext()
+    {
+        var scope = _provider
+            .CreateScope();
+        return scope.ServiceProvider.GetRequiredService<ConduitContext>();
+    }
 
     public async Task ExecuteScopeAsync(Func<IServiceProvider, Task> action)
     {
@@ -49,7 +74,6 @@ public class SliceFixture : IDisposable
         ExecuteScopeAsync(sp =>
         {
             var mediator = sp.GetRequiredService<IMediator>();
-
             return mediator.Send(request);
         });
 
@@ -57,7 +81,6 @@ public class SliceFixture : IDisposable
         ExecuteScopeAsync(sp =>
         {
             var mediator = sp.GetRequiredService<IMediator>();
-
             return mediator.Send(request);
         });
 
@@ -74,6 +97,7 @@ public class SliceFixture : IDisposable
             {
                 db.Add(entity);
             }
+
             return db.SaveChangesAsync();
         });
 }
